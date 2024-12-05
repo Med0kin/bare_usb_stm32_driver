@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "stdint.h": "c",
+        "clock.h": "c",
+        "usb.h": "c",
+        "stm32f411xe.h": "c"
+    }
+}

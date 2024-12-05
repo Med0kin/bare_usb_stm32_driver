@@ -1,0 +1,9 @@
+[submodule "stm32f411_device_hid/cmsis/cmsis-device-f4"]
+	path = stm32f411_device_hid/cmsis/cmsis-device-f4
+	url = https://github.com/STMicroelectronics/cmsis-device-f4.git
+[submodule "stm32f411_device_hid/cmsis/cmsis-core"]
+	path = stm32f411_device_hid/cmsis/cmsis-core
+	url = https://github.com/STMicroelectronics/cmsis-core
+[submodule "stm32f411_device_hid/cmsis/cmsis-svd-stm32"]
+	path = stm32f411_device_hid/cmsis/cmsis-svd-stm32
+	url = https://github.com/modm-io/cmsis-svd-stm32

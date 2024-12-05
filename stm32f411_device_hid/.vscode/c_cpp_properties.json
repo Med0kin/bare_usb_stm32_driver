@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "STM32 F4",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/core/inc/",
+                "${workspaceFolder}/cmsis/cmsis-core/Include",
+                "${workspaceFolder}/cmsis/cmsis-device-f4/Include",
+                "${workspaceFolder}/usb/inc"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "STM32F411xE"
+            ],
+            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+            "compilerArgs": [
+                "-mcpu=cortex-m4",
+                "-mthumb"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-arm"
+        }
+    ],
+    "version": 4
+}
