@@ -13,6 +13,8 @@ static void gpio_init(usb_init_t *init);
 static void core_init(usb_init_t *init);
 static void device_init(usb_init_t *init);
 static void core_soft_reset(void);
+static void force_device_mode(void);
+static void reset_endpoints(void);
 
 static usb_driver_t *p_usb_driver = NULL;
 
@@ -151,7 +153,7 @@ gpio_init(usb_init_t *init)
 }
 
 /**
- * @brief TEST
+ * @brief USB core initialization.
  */
 static void
 core_init(usb_init_t *init)
@@ -164,17 +166,12 @@ core_init(usb_init_t *init)
 }
 
 /**
- * @brief TEST
+ * @brief USB device initialization.
  */
 static void
 device_init(usb_init_t *init)
 {
-    USB_OTG_FS->GUSBCFG &= ~(USB_OTG_GUSBCFG_FDMOD |
-                             USB_OTG_GUSBCFG_FHMOD);
-
-    USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
-
-    while(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_CMOD);
+    force_device_mode();
 
     for (uint32_t i = 0; i < 15U; i++)
     {
@@ -195,12 +192,80 @@ device_init(usb_init_t *init)
     }
 
     USB_OTG_PCGCCTL = 0U;
-    
     USB_OTG_DEVICE->DCFG |= USB_OTG_DCFG_DSPD;
 
     flush_rx_fifo();
     flush_tx_fifo();
 
+    reset_endpoints();
+
+    // Configure interrupts
+    //
+    USB_OTG_FS->GINTSTS = 0U;
+    USB_OTG_FS->GINTSTS = 0xBFFFFFFFU;
+
+    USB_OTG_FS->GINTMSK |= (USB_OTG_GINTMSK_USBRST   |
+                            USB_OTG_GINTMSK_ENUMDNEM |
+                            USB_OTG_GINTMSK_IEPINT   |
+                            USB_OTG_GINTMSK_OEPINT   |
+                            USB_OTG_GINTMSK_RXFLVLM  |
+                            USB_OTG_GINTMSK_SOFM     |
+                            USB_OTG_GINTMSK_MMISM    |
+                            USB_OTG_GINTMSK_USBSUSPM |
+                            USB_OTG_GINTMSK_WUIM);
+    if (init->vbus_sensing)
+    {
+        USB_OTG_FS->GINTMSK |= (USB_OTG_GINTMSK_SRQIM |
+                                USB_OTG_GINTMSK_OTGINT);
+    }
+
+    USB_OTG_PCGCCTL &= ~(USB_OTG_PCGCR_STPPCLK | USB_OTG_PCGCR_GATEHCLK);
+    USB_OTG_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
+
+    USB_OTG_FS->GRXFSIZ = USB_GLOBAL_RX_FIFO_SIZE;
+    USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (USB_EP0_TX_FIFO_SIZE
+                                      << USB_OTG_DIEPTXF_INEPTXFD_Pos);
+
+    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+    USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+
+    USB_OTG_PCGCCTL &= ~(USB_OTG_PCGCR_STPPCLK | USB_OTG_PCGCR_GATEHCLK);
+    USB_OTG_DEVICE->DCTL &= ~(USB_OTG_DCTL_SDIS);
+}
+
+/**
+ * @brief Reset USB hardware to its default state.
+ */
+static void
+core_soft_reset(void)
+{
+    while (!(USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL));
+
+    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
+
+    while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_CSRST);
+}
+
+/**
+ * @brief Force device mode.
+ *        Blocks until the device mode is forced.
+ */
+static void
+force_device_mode(void)
+{
+    USB_OTG_FS->GUSBCFG &= ~(USB_OTG_GUSBCFG_FDMOD |
+                                USB_OTG_GUSBCFG_FHMOD);
+    USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+
+    while(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_CMOD);
+}
+
+/**
+ * @brief Reset endpoints.
+ */
+static void
+reset_endpoints(void)
+{
     USB_OTG_DEVICE->DIEPMSK = 0U;
     USB_OTG_DEVICE->DOEPMSK = 0U;
     USB_OTG_DEVICE->DAINTMSK = 0U;
@@ -228,63 +293,6 @@ device_init(usb_init_t *init)
 
     USB_EP_OUT(0)->DOEPTSIZ = 0U;
     USB_EP_OUT(0)->DOEPINT = 0xFB7FU;
-
-
-    USB_OTG_FS->GINTSTS = 0U;
-    USB_OTG_FS->GINTSTS = 0xBFFFFFFFU;
-
-    USB_OTG_FS->GINTMSK |= (USB_OTG_GINTMSK_USBRST   |
-                            USB_OTG_GINTMSK_ENUMDNEM |
-                            USB_OTG_GINTMSK_IEPINT   |
-                            USB_OTG_GINTMSK_OEPINT   |
-                            USB_OTG_GINTMSK_RXFLVLM  |
-                            USB_OTG_GINTMSK_SOFM     |
-                            USB_OTG_GINTMSK_MMISM    |
-                            USB_OTG_GINTMSK_USBSUSPM |
-                            USB_OTG_GINTMSK_WUIM);
-    if (init->vbus_sensing)
-    {
-        USB_OTG_FS->GINTMSK |= (USB_OTG_GINTMSK_SRQIM |
-                                USB_OTG_GINTMSK_OTGINT);
-    }
-
-    USB_OTG_PCGCCTL &= ~(USB_OTG_PCGCR_STPPCLK | USB_OTG_PCGCR_GATEHCLK);
-
-    USB_OTG_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
-
-    USB_OTG_FS->GRXFSIZ = USB_GLOBAL_RX_FIFO_SIZE;
-    USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (USB_EP0_TX_FIFO_SIZE
-                                      << USB_OTG_DIEPTXF_INEPTXFD_Pos);
-
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN;
-
-    USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
-
-    USB_OTG_PCGCCTL &= ~(USB_OTG_PCGCR_STPPCLK | USB_OTG_PCGCR_GATEHCLK);
-
-    USB_OTG_DEVICE->DCTL &= ~(USB_OTG_DCTL_SDIS);
 }
-
-/**
- * @brief Reset USB hardware to its default state.
- */
-static void
-core_soft_reset(void)
-{
-    while (!(USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL));
-
-    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_CSRST;
-
-    while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_CSRST);
-}
-
-
-
-
-
-
-
-
-
 
 /*** end of file ***/
