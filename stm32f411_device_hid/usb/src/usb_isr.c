@@ -8,10 +8,9 @@
 
 #define THIS_FILE__ "usb_isr.c"
 
-
-static void srqint_handler(void);
-static void usbrst_handler(void);
-static void enumdne_handler(void);
+static void mmis_handler(usb_driver_t *p_driver);
+static void usbrst_handler(usb_driver_t *p_driver);
+static void enumdne_handler(usb_driver_t *p_driver);
 static void rxflvl_handler(usb_driver_t *p_driver);
 
 static void oepint_handler(usb_driver_t *p_driver);
@@ -20,6 +19,38 @@ static void oepint_stup_get_descriptor_handler(usb_driver_t *p_driver);
 
 static void iepint_handler(usb_driver_t *p_driver);
 
+static const void (*gintsts_handlers[])(usb_driver_t *) = {
+    NULL,               /* CMOD */
+    mmis_handler,       /* MMIS */
+    NULL,               /* OTGINT */
+    NULL,               /* SOF */
+    rxflvl_handler,     /* RXFLVL */
+    NULL,               /* NPTXFE */
+    NULL,               /* GINNAKEFF */
+    NULL,               /* GOUTNAKEFF */
+    NULL, NULL,
+    NULL,               /* ESUSP */
+    NULL,               /* USBSUSP */
+    usbrst_handler,     /* USBRST */
+    enumdne_handler,    /* ENUMDNE */
+    NULL,               /* ISOOUTDROP */
+    NULL,               /* EOPF */
+    NULL, NULL,
+    iepint_handler,     /* IEPINT */
+    oepint_handler,     /* OEPINT */
+    NULL,               /* IISOIXFR */
+    NULL,               /* IPXFR_INCOMPISOOUT */
+    NULL, NULL,
+    NULL,               /* HPRTINT */
+    NULL,               /* HCINT */
+    NULL,               /* PTXFE */
+    NULL,
+    NULL,               /* CIDSCHG */
+    NULL,               /* DISCINT */
+    NULL,               /* SRQINT */
+    NULL                /* WKUINT */
+};
+#define GINTSTS_HANDLERS_SIZE (sizeof(gintsts_handlers) / sizeof(gintsts_handlers[0]))
 
 /**
  * @brief USB interrupt handler.
@@ -34,69 +65,21 @@ usb_irq_handler(void)
     {
         return;
     }
-
-    uint32_t gintsts_status = USB_OTG_FS->GINTSTS;
-
-    //TODO conside making is function map
-    if (gintsts_status & USB_OTG_GINTSTS_SRQINT)
-    {
-        srqint_handler();
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_USBRST)
-    {
-        usbrst_handler();
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_ENUMDNE)
-    {
-        enumdne_handler();
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_SOF)
-    {
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF;
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_RXFLVL)
-    {
-        rxflvl_handler(p_driver);
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_ESUSP)
-    {
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ESUSP;
-        printf("ESUSP\n");
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_USBSUSP)
-    {
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_USBSUSP;
-        printf("USBSUSP\n");
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_WKUINT)
-    {
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_WKUINT;
-        printf("WKUINT\n");
-        // TODO: handle wakeup event
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_MMIS)
-    {
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS;
-        // TODO: handle mode mismatch
-        printf("MMIS\n");
-        for (;;);
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_OEPINT)
-    {
-        printf("OEPINT\n");
-        oepint_handler(p_driver);
-    }
-    if (gintsts_status & USB_OTG_GINTSTS_IEPINT)
-    {
-        iepint_handler(p_driver);
-    }
     
+    uint32_t gintsts_reg = USB_OTG_FS->GINTSTS;
 
-    if (USB_OTG_FS->GOTGINT & USB_OTG_GOTGINT_SEDET)
+    for (size_t interrupt = 1; interrupt < GINTSTS_HANDLERS_SIZE; interrupt++)
     {
-        USB_OTG_FS->GOTGINT |= USB_OTG_GOTGINT_SEDET;
-        printf("SEDET\n");
-    } 
+        if (gintsts_reg & (1 << interrupt))
+        {
+            if (gintsts_handlers[interrupt] != NULL)
+            {
+                gintsts_handlers[interrupt](p_driver);
+            }
+            USB_OTG_FS->GINTSTS |= (1 << interrupt);
+        }
+    }
+
 }
 
 /*##########################################################################*/
@@ -104,21 +87,22 @@ usb_irq_handler(void)
 /*##########################################################################*/
 
 /**
- * @brief TEST
+ * @brief Mode mismatch interrupt handler.
  */
 static void
-srqint_handler(void)
+mmis_handler(usb_driver_t *p_driver)
 {
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SRQINT;
-    printf("SRQINT\n");
+    printf("MMIS\n");
+    ASSERT(0);
 }
 
 /**
- * @brief TEST
+ * @brief USB reset interrupt handler.
  */
 static void
-usbrst_handler(void)
+usbrst_handler(usb_driver_t *p_driver)
 {
+    printf("USBRST\n");
     USB_OTG_DEVICE->DCTL &= ~USB_OTG_DCTL_RWUSIG;
     flush_tx_fifo();
     USB_EP_IN(0)->DIEPINT = 0xFB7FU;
@@ -144,17 +128,15 @@ usbrst_handler(void)
     USB_EP_OUT(0)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_STUPCNT |
                                 (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
                                 ((USB_EP0_RX_FIFO_SIZE) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos));
-
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_USBRST;
-    printf("USBRST\n");
 }
 
 /**
- * @brief TEST
+ * @brief ENUMDNE interrupt handler.
  */
 static void
-enumdne_handler(void)
+enumdne_handler(usb_driver_t *p_driver)
 {
+    printf("ENUMDNE\n");
     USB_EP_IN(0)->DIEPCTL &= ~(USB_OTG_DIEPCTL_MPSIZ);
     USB_EP_OUT(0)->DOEPCTL &= ~(USB_OTG_DOEPCTL_MPSIZ);
     
@@ -168,9 +150,6 @@ enumdne_handler(void)
 
     // Clear pending DIEPINT interrupts
     USB_EP_IN(0)->DIEPINT = 0xFB7FU;
-
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE;
-    printf("ENUMDNE\n");
 }
 
 /**
@@ -222,11 +201,12 @@ rxflvl_handler(usb_driver_t *p_driver)
         default:
             break;
     }
-
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
-
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_RXFLVL;
 }
+
+/*##########################################################################*/
+/*#                        OEPINT INTERRUPT HANDLERS                       #*/
+/*##########################################################################*/
 
 /**
  * @brief OEPINT interrupt handler.
@@ -234,9 +214,11 @@ rxflvl_handler(usb_driver_t *p_driver)
 static void
 oepint_handler(usb_driver_t *p_driver)
 {
+    printf("OEPINT\n");
     uint32_t daint_reg = USB_OTG_DEVICE->DAINT;
     uint32_t ep_num_one_hot = (daint_reg & USB_OTG_DAINT_OEPINT)
                                >> (USB_OTG_DAINT_OEPINT_Pos);
+    REQUIRE(ep_num_one_hot != 0);
     uint32_t ep_num = __builtin_ctz(ep_num_one_hot);
     uint32_t doepint_reg = USB_EP_OUT(ep_num)->DOEPINT;
 
@@ -266,10 +248,109 @@ oepint_handler(usb_driver_t *p_driver)
         printf("\tNAK out%ld\n", ep_num);
         USB_EP_OUT(ep_num)->DOEPINT |= USB_OTG_DOEPINT_NAK;
     }
-    
-
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OEPINT;
 }
+
+/**
+ * @brief OEPINT interrupt handler for SETUP packets.
+ */
+static void
+oepint_stup_handler(usb_driver_t *p_driver)
+{
+    uint32_t addr = 0;
+    enum usb_request_e request = (enum usb_request_e)p_driver->setup_packet.request;
+    printf("\tstup_req:%d\n", request);
+    switch(request)
+    {
+        case USB_BREQUEST_GET_STATUS:
+            break;
+        case USB_BREQUEST_CLEAR_FEATURE:
+            break;
+        case USB_BREQUEST_SET_FEATURE:
+            break;
+        case USB_BREQUEST_SET_ADDRESS:
+            addr = p_driver->setup_packet.value;
+            USB_OTG_DEVICE->DCFG |= (addr << USB_OTG_DCFG_DAD_Pos);
+            usb_write_fifo(NULL, 0);
+            break;
+        case USB_BREQUEST_GET_DESCRIPTOR:
+            oepint_stup_get_descriptor_handler(p_driver);
+            break;
+        case USB_BREQUEST_SET_DESCRIPTOR:
+            break;
+        case USB_BREQUEST_GET_CONFIGURATION:
+            break;
+        case USB_BREQUEST_SET_CONFIGURATION:
+            break;
+        case USB_BREQUEST_GET_INTERFACE:
+            break;
+        case USB_BREQUEST_SET_INTERFACE:
+            break;
+        case USB_BREQUEST_SYNCH_FRAME:
+            break;
+        default:
+            printf("\tUnknown request or not supported\n");
+            break;
+    }
+}
+
+static void
+oepint_stup_get_descriptor_handler(usb_driver_t *p_driver)
+{
+    uint16_t value = p_driver->setup_packet.value;
+    enum usb_descriptor_value_e desc_value_type = (enum usb_descriptor_value_e)(value >> 8);
+    uint32_t len_requested = p_driver->setup_packet.length;
+    const uint8_t *p_descriptor_requested = NULL;
+    uint32_t len = 0;
+
+    printf("\tdesc_type:%d\n", desc_value_type);
+
+    switch(desc_value_type)
+    {
+        case USB_DESCRIPTOR_DEVICE:
+            p_descriptor_requested = (const uint8_t *)device_descriptor;
+            len = sizeof(device_descriptor);
+            break;
+        case USB_DESCRIPTOR_CONFIGURATION:
+            p_descriptor_requested = (const uint8_t *)configuraiton_descritor;
+            len = sizeof(configuraiton_descritor);
+            break;
+        case USB_DESCRIPTOR_STRING:
+            break;
+        case USB_DESCRIPTOR_INTERFACE:
+            break;
+        case USB_DESCRIPTOR_ENDPOINT:
+            break;
+        case USB_DESCRIPTOR_DEVICE_QUALIFIER:
+            break;
+        case USB_DESCRIPTOR_OTHER_SPEED_CONFIGURATION:
+            break;
+        case USB_DESCRIPTOR_INTERFACE_POWER:
+            break;
+        case USB_DESCRIPTOR_OTG:
+            break;
+        default:
+            ASSERT(0);
+            return;
+    }
+
+    if (len > len_requested)
+    {
+        len = len_requested;
+    }
+    if (p_descriptor_requested != NULL && len > 0)
+    {
+        usb_write_fifo(p_descriptor_requested, len);
+    }
+    else
+    {
+        //TODO when desc not support it should STALL n not just ignore
+        printf("\tDescriptor not fount or len is zero\n");
+    }
+}
+
+/*##########################################################################*/
+/*#                       IEPINT INTERRUPT HANDLERS                        #*/
+/*##########################################################################*/
 
 /**
  * @brief IEPINT interrupt handler.
@@ -277,9 +358,7 @@ oepint_handler(usb_driver_t *p_driver)
 static void
 iepint_handler(usb_driver_t *p_driver)
 {
-    USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_IEPINT;
     printf("IEPINT\n");
-
     uint32_t daint_reg = USB_OTG_DEVICE->DAINT;
     uint32_t ep_num_one_hot = (daint_reg & USB_OTG_DAINT_IEPINT)
                                >> (USB_OTG_DAINT_IEPINT_Pos);
@@ -331,108 +410,4 @@ iepint_handler(usb_driver_t *p_driver)
     }
 }
 
-
-/*##########################################################################*/
-/*#                       OEPINT0 INTERRUPT HANDLERS                       #*/
-/*##########################################################################*/
-
-/**
- * @brief OEPINT interrupt handler for SETUP packets.
- */
-static void
-oepint_stup_handler(usb_driver_t *p_driver)
-{
-    enum usb_request_e request = (enum usb_request_e)p_driver->setup_packet.request;
-    printf("\tstup_req:%d\n", request);
-    switch(request)
-    {
-        case USB_BREQUEST_GET_STATUS:
-            break;
-        case USB_BREQUEST_CLEAR_FEATURE:
-            break;
-        case USB_BREQUEST_SET_FEATURE:
-            break;
-        case USB_BREQUEST_SET_ADDRESS:
-            uint32_t addr = p_driver->setup_packet.value;
-            USB_OTG_DEVICE->DCFG |= (addr << USB_OTG_DCFG_DAD_Pos);
-            usb_write_fifo(NULL, 0);
-            break;
-        case USB_BREQUEST_GET_DESCRIPTOR:
-            oepint_stup_get_descriptor_handler(p_driver);
-            break;
-        case USB_BREQUEST_SET_DESCRIPTOR:
-            break;
-        case USB_BREQUEST_GET_CONFIGURATION:
-            break;
-        case USB_BREQUEST_SET_CONFIGURATION:
-            break;
-        case USB_BREQUEST_GET_INTERFACE:
-            break;
-        case USB_BREQUEST_SET_INTERFACE:
-            break;
-        case USB_BREQUEST_SYNCH_FRAME:
-            break;
-        default:
-            break;
-    }
-}
-
-static void
-oepint_stup_get_descriptor_handler(usb_driver_t *p_driver)
-{
-    uint16_t value = p_driver->setup_packet.value;
-    enum usb_descriptor_value_e desc_value_type = (enum usb_descriptor_value_e)(value >> 8);
-    uint32_t len_requested = p_driver->setup_packet.length;
-    const uint8_t *p_descriptor_requested = NULL;
-    uint32_t len = 0;
-
-    printf("\tdesc_type:%d\n", desc_value_type);
-
-    switch(desc_value_type)
-    {
-        case USB_DESCRIPTOR_DEVICE:
-            p_descriptor_requested = (const uint8_t *)device_descriptor;
-            len = sizeof(device_descriptor);
-            break;
-        case USB_DESCRIPTOR_CONFIGURATION:
-            p_descriptor_requested = (const uint8_t *)configuraiton_descritor;
-            len = sizeof(configuraiton_descritor);
-            break;
-        case USB_DESCRIPTOR_STRING:
-            break;
-        case USB_DESCRIPTOR_INTERFACE:
-            break;
-        case USB_DESCRIPTOR_ENDPOINT:
-            break;
-        case USB_DESCRIPTOR_DEVICE_QUALIFIER:
-            break;
-        case USB_DESCRIPTOR_OTHER_SPEED_CONFIGURATION:
-            break;
-        case USB_DESCRIPTOR_INTERFACE_POWER:
-            break;
-        case USB_DESCRIPTOR_OTG:
-            break;
-        default:
-            ASSERT(0);
-            return;
-    }
-
-    //ENSURE(p_descriptor_requested != NULL);
-    if (len > len_requested)
-    {
-        len = len_requested;
-    }
-    if (p_descriptor_requested != NULL && len > 0)
-    {
-        usb_write_fifo(p_descriptor_requested, len);
-    }
-    else
-    {
-        //TODO when desc not support it should STALL n not just ingore
-        printf("\tDescriptor not fount or len is zero\n");
-    }
-}
-
-/*##########################################################################*/
-/*#                       IEPINT INTERRUPT HANDLERS                        #*/
-/*##########################################################################*/
+/* end of file */
