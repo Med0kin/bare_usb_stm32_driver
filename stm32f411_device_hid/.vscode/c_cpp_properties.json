@@ -15,12 +15,12 @@
                 "_UNICODE",
                 "STM32F411xE"
             ],
-            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+            "compilerPath": "C://ProgramData//chocolatey//bin//arm-none-eabi-gcc.exe",
             "compilerArgs": [
                 "-mcpu=cortex-m4",
                 "-mthumb"
             ],
-            "cStandard": "c11",
+            "cStandard": "c99",
             "cppStandard": "c++17",
             "intelliSenseMode": "gcc-arm"
         }

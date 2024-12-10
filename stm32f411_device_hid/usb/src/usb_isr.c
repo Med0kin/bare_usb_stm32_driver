@@ -322,8 +322,8 @@ get_descriptor(usb_setup_packet_t packet)
             desc_len = sizeof(device_descriptor);
             break;
         case USB_DESCRIPTOR_CONFIGURATION:
-            p_descriptor_requested = configuraiton_descritor;
-            desc_len = sizeof(configuraiton_descritor);
+            p_descriptor_requested = configuraiton_descriptor;
+            desc_len = sizeof(configuraiton_descriptor);
             break;
         case USB_DESCRIPTOR_STRING:
             p_descriptor_requested = string_descriptors[packet.detailed.value_l];
@@ -341,8 +341,13 @@ get_descriptor(usb_setup_packet_t packet)
             break;
         case USB_DESCRIPTOR_OTG:
             break;
+        case USB_DESCRIPTOR_REPORT:
+            p_descriptor_requested = report_descriptor;
+            desc_len = sizeof(report_descriptor);
+            break;
         default:
             ASSERT(0);
+            break;
     }
     if (p_descriptor_requested != NULL)
     {

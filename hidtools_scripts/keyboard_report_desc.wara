@@ -1,0 +1,12 @@
+[[applicationCollection]]
+usage = ['Generic Desktop', 'Keyboard']
+
+    [[applicationCollection.inputReport]]
+
+        [[applicationCollection.inputReport.variableItem]]
+        usageRange = ['Keyboard/Keypad', 'Keyboard LeftControl', 'Keyboard Right GUI']
+        logicalValueRange = [0, 1]
+
+        [[applicationCollection.inputReport.arrayItem]]
+        usageRange = ['Keyboard/Keypad', 'ErrorRollOver', 'Keyboard Application']
+        count = 8
