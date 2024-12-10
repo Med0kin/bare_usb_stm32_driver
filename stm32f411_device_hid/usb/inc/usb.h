@@ -52,6 +52,17 @@ typedef union usb_setup_packet_u
         uint16_t index;
         uint16_t length;
     };
+    struct
+    {
+        uint8_t request_type;
+        uint8_t request;
+        uint8_t value_l;
+        uint8_t value_h;
+        uint8_t index_l;
+        uint8_t index_h;
+        uint16_t length;
+    } detailed;
+    
     uint32_t raw_packet_data[2];
 } usb_setup_packet_t;
 

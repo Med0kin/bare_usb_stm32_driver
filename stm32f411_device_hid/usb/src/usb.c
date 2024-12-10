@@ -70,7 +70,7 @@ flush_rx_fifo(void)
 }
 
 void
-usb_write_fifo(const uint8_t *p_src, uint32_t len)
+usb_write_fifo(const uint8_t *p_src, size_t len)
 {
     if (!(USB_EP_IN(0)->DIEPCTL & USB_OTG_DIEPCTL_USBAEP))
     {
@@ -79,9 +79,9 @@ usb_write_fifo(const uint8_t *p_src, uint32_t len)
     }
 
     // Check for available space
-    uint32_t len_in_words = (len + 3) / 4;
-    uint32_t available_space = (USB_EP_IN(0)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV);
-    printf("\tAvailable space: %ld\n", available_space);
+    size_t len_in_words = (len + 3) / 4;
+    size_t available_space = (USB_EP_IN(0)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV);
+    printf("\tAvailable space: %d\n", available_space);
     if (len_in_words > available_space)
     {
         printf("ERR: Not enough space in TX FIFO!\n");
@@ -107,7 +107,7 @@ usb_write_fifo(const uint8_t *p_src, uint32_t len)
     }
 
     USB_EP_OUT(0)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
-    printf("\tWrote len: %ld\n", len);
+    printf("\tWrote len: %d\n", len);
 }
 
 

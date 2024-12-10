@@ -70,7 +70,7 @@ enum usb_descriptor_value_e
 
 uint32_t flush_tx_fifo(void);
 uint32_t flush_rx_fifo(void);
-void usb_write_fifo(const uint8_t *src, uint32_t len);
+void usb_write_fifo(const uint8_t *src, size_t len);
 usb_driver_t *usb_get_instance(void);
 
 #endif /* USB_PRIVATE_H */

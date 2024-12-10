@@ -15,9 +15,11 @@ static void rxflvl_handler(usb_driver_t *p_driver);
 
 static void oepint_handler(usb_driver_t *p_driver);
 static void oepint_stup_handler(usb_driver_t *p_driver);
-static void oepint_stup_get_descriptor_handler(usb_driver_t *p_driver);
 
 static void iepint_handler(usb_driver_t *p_driver);
+
+static void set_address(uint8_t addr);
+static void get_descriptor(usb_setup_packet_t packet);
 
 static const void (*gintsts_handlers[])(usb_driver_t *) = {
     NULL,               /* CMOD */
@@ -252,12 +254,13 @@ oepint_handler(usb_driver_t *p_driver)
 
 /**
  * @brief OEPINT interrupt handler for SETUP packets.
+ *        Handles the SETUP packet and sends the appropriate response.
  */
 static void
 oepint_stup_handler(usb_driver_t *p_driver)
 {
-    uint32_t addr = 0;
     enum usb_request_e request = (enum usb_request_e)p_driver->setup_packet.request;
+
     printf("\tstup_req:%d\n", request);
     switch(request)
     {
@@ -268,12 +271,10 @@ oepint_stup_handler(usb_driver_t *p_driver)
         case USB_BREQUEST_SET_FEATURE:
             break;
         case USB_BREQUEST_SET_ADDRESS:
-            addr = p_driver->setup_packet.value;
-            USB_OTG_DEVICE->DCFG |= (addr << USB_OTG_DCFG_DAD_Pos);
-            usb_write_fifo(NULL, 0);
+            set_address(p_driver->setup_packet.value);
             break;
         case USB_BREQUEST_GET_DESCRIPTOR:
-            oepint_stup_get_descriptor_handler(p_driver);
+            get_descriptor(p_driver->setup_packet);
             break;
         case USB_BREQUEST_SET_DESCRIPTOR:
             break;
@@ -293,28 +294,40 @@ oepint_stup_handler(usb_driver_t *p_driver)
     }
 }
 
+/**
+ * @brief SET_ADDRESS request handler.
+ */
 static void
-oepint_stup_get_descriptor_handler(usb_driver_t *p_driver)
+set_address(uint8_t addr)
 {
-    uint16_t value = p_driver->setup_packet.value;
-    enum usb_descriptor_value_e desc_value_type = (enum usb_descriptor_value_e)(value >> 8);
-    uint32_t len_requested = p_driver->setup_packet.length;
+    USB_OTG_DEVICE->DCFG |= (addr << USB_OTG_DCFG_DAD_Pos);
+    usb_write_fifo(NULL, 0);
+}
+
+/**
+ * @brief GET_DESCRIPTOR request handler.
+ */
+static void
+get_descriptor(usb_setup_packet_t packet)
+{
     const uint8_t *p_descriptor_requested = NULL;
-    uint32_t len = 0;
-
+    enum usb_descriptor_value_e desc_value_type = (enum usb_descriptor_value_e)(packet.detailed.value_h);
+    size_t desc_len = 0;
     printf("\tdesc_type:%d\n", desc_value_type);
-
+    
     switch(desc_value_type)
     {
         case USB_DESCRIPTOR_DEVICE:
-            p_descriptor_requested = (const uint8_t *)device_descriptor;
-            len = sizeof(device_descriptor);
+            p_descriptor_requested = device_descriptor;
+            desc_len = sizeof(device_descriptor);
             break;
         case USB_DESCRIPTOR_CONFIGURATION:
-            p_descriptor_requested = (const uint8_t *)configuraiton_descritor;
-            len = sizeof(configuraiton_descritor);
+            p_descriptor_requested = configuraiton_descritor;
+            desc_len = sizeof(configuraiton_descritor);
             break;
         case USB_DESCRIPTOR_STRING:
+            p_descriptor_requested = string_descriptors[packet.detailed.value_l];
+            desc_len = string_descriptors[packet.detailed.value_l][0];
             break;
         case USB_DESCRIPTOR_INTERFACE:
             break;
@@ -330,21 +343,12 @@ oepint_stup_get_descriptor_handler(usb_driver_t *p_driver)
             break;
         default:
             ASSERT(0);
-            return;
     }
-
-    if (len > len_requested)
+    if (p_descriptor_requested != NULL)
     {
-        len = len_requested;
-    }
-    if (p_descriptor_requested != NULL && len > 0)
-    {
-        usb_write_fifo(p_descriptor_requested, len);
-    }
-    else
-    {
-        //TODO when desc not support it should STALL n not just ignore
-        printf("\tDescriptor not fount or len is zero\n");
+        size_t req_len = packet.length;
+        size_t tx_len = (req_len < desc_len) ? req_len : desc_len;
+        usb_write_fifo(p_descriptor_requested, tx_len);
     }
 }
 

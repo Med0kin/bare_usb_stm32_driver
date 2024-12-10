@@ -40,6 +40,10 @@ const uint8_t device_descriptor[18] = {
     0x01                            /* bNumConfigurations */
 };
 
+const uint8_t report_descriptor[] = {
+
+};
+
 const uint8_t configuraiton_descritor[25] = {
     9,                              /* bLength */
     0x02,                           /* dDescriptorType:     Configuration Descriptor*/
@@ -49,6 +53,7 @@ const uint8_t configuraiton_descritor[25] = {
     0x00,                           /* iConfiguration:      Index of string descriptor describing configuration*/
     0b11000000,                     /* bmAttributes:        D6: Self-powered, D5: Remote Wakeup*/
     0x01,                           /* bMaxPower:           in units of 2mA*/
+
     9,                              /* bLength */
     0x04,                           /* dDescriptorType:     Interface Descriptor*/
     0x01,                           /* bInterfaceNumber:    ID number*/
@@ -58,12 +63,21 @@ const uint8_t configuraiton_descritor[25] = {
     0x01,                           /* bInterfaceSubClass   Support boot protocol*/
     0x01,                           /* bInterfaceProtocol   Keyboard*/
     0x00,                           /* iInterface*/
+
     7,                              /* bLength */
     0x05,                           /* dDescriptorType:     Endpoint Descriptor*/
     0b10000001,                     /* bEndpointAddress:    D3-D0: endpoint number, D7: IN direciton*/
     0x03,                           /* bmAttribures:        Interrupt*/
     0x08, 0x00,                     /* wMaxPacketSize       8bytes*/
     0x0A                            /* bInterval:           10ms*/
+
+    9,                              /* bLength */
+    0x21,                           /* dDescriptorType:     HID Descriptor*/
+    0x01, 0x11,                     /* bcdHID:              HID class specification release number*/
+    0x00,                           /* bCountryCode:        Hardware target country*/
+    0x01,                           /* bNumDescriptors:     Number of HID class descriptors to follow*/
+    0x22,                           /* bDescriptorType:     Report descriptor*/
+    sizeof(report_descriptor), 0x00 /* wDescriptorLength:   Length of report descriptor*/
 };
 
 /*##########################################################################*/
@@ -110,7 +124,7 @@ const uint8_t string_descriptor_product[] = {
 /**
  * @brief String descriptor table.
  */
-const uint8_t *string_descriptor[] = {
+const uint8_t *string_descriptors[] = {
     string_descriptor_language,
     string_descriptor_manufacturer,
     string_descriptor_product
