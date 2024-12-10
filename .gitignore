@@ -1,2 +1,3 @@
 stm32f411_device_hid/build/
 stm32f411_device_hid/docs/
+stm32f411_device_hid/.vscode/settings.json
